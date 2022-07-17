@@ -31,14 +31,23 @@ func main() {
 				TakesFile: true,
 				Aliases:   []string{"c"},
 			},
+			&cli.IntFlag{
+				Name:    "limit",
+				Value:   30,
+				Usage:   "The time limit to complete the quiz (seconds)",
+				Aliases: []string{"l"},
+			},
 		},
 		Action: func(c *cli.Context) error {
 			csvPath := c.Path("csv")
+			limit := c.Int("limit")
+
 			rows, err := readCsv(csvPath)
 			if err != nil {
 				log.Fatal(err)
 			}
-			results, err := collectQuizAnswers(rows)
+
+			results, err := collectQuizAnswers(rows, limit)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -53,20 +62,24 @@ func main() {
 	}
 }
 
-func collectQuizAnswers(rows [][]string) ([]bool, error) {
-	results := []bool{}
+func collectQuizAnswers(rows [][]string, limit int) ([]bool, error) {
+	results := make([]bool, len(rows))
+	timer := time.NewTimer(time.Duration(limit) * time.Second)
 
 	reader := bufio.NewReader(os.Stdin)
 	for i, row := range rows {
+		fmt.Printf("Question #%d: %s = ", i+1, row[0])
+		answerChan := make(chan string)
+		go asyncReadAnswer(reader, answerChan)
 
-		fmt.Printf("Question #%d: %s = ", i, row[0])
-		answer, err := reader.ReadString('\n')
+		select {
+		case <-timer.C:
+			fmt.Println()
+			return results, nil
+		case answer := <-answerChan:
+			results[i] = answer == row[1]
 
-		if err != nil {
-			return nil, err
 		}
-
-		results = append(results, strings.TrimSpace(answer) == row[1])
 
 	}
 	return results, nil
@@ -87,6 +100,15 @@ func readCsv(csvPath string) ([][]string, error) {
 	}
 
 	return rows, nil
+}
+
+func asyncReadAnswer(reader *bufio.Reader, answerChan chan string) {
+	answer, err := reader.ReadString('\n')
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	answerChan <- strings.TrimSpace(answer)
 }
 
 func printSummary(results []bool) {
