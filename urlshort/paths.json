@@ -1,0 +1,7 @@
+[
+  { "path": "/gmail", "url": "https://mail.google.com/mail/u/0/#inbox" },
+  {
+    "path": "/wordle",
+    "url": "https://www.nytimes.com/games/wordle/index.html"
+  }
+]
