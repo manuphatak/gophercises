@@ -11,6 +11,7 @@ import (
 )
 
 func main() {
+	var handler RouteHandler
 
 	app := &cli.App{
 		Name:                   "urlshort",
@@ -35,11 +36,28 @@ func main() {
 				TakesFile: true,
 				Aliases:   []string{"j"},
 			},
+
+			&cli.BoolFlag{
+				Name:    "bolt",
+				Value:   false,
+				Usage:   "Use a bolt-db backend to store and serve the redirects",
+				Aliases: []string{"b"},
+			},
 		},
 		Action: func(c *cli.Context) error {
 			var err error
 			mux := defaultMux()
-			handler := NewMemoryEngine(mux)
+
+			if c.Bool("bolt") {
+				handler, err = CreateBoltEngine(mux)
+				if err != nil {
+					return err
+				}
+			} else {
+				handler = NewMemoryEngine(mux)
+			}
+			defer handler.Close()
+
 			handler = loadDefaultRedirects(handler)
 
 			yamlPaths := c.StringSlice("yaml")
