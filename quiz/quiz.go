@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"strings"
 	"time"
@@ -15,6 +16,8 @@ import (
 )
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
+
 	app := &cli.App{
 		Name:                   "quiz",
 		Usage:                  "An interactive quiz game",
@@ -37,14 +40,25 @@ func main() {
 				Usage:   "The time limit to complete the quiz (seconds)",
 				Aliases: []string{"l"},
 			},
+			&cli.BoolFlag{
+				Name:    "shuffle",
+				Value:   false,
+				Usage:   "Randomize the order of the questions",
+				Aliases: []string{"s"},
+			},
 		},
 		Action: func(c *cli.Context) error {
 			csvPath := c.Path("csv")
 			limit := c.Int("limit")
+			shuffle := c.Bool("shuffle")
 
 			rows, err := readCsv(csvPath)
 			if err != nil {
 				log.Fatal(err)
+			}
+
+			if shuffle {
+				rows = lo.Shuffle(rows)
 			}
 
 			results, err := collectQuizAnswers(rows, limit)
