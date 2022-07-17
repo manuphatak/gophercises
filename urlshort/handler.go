@@ -14,14 +14,14 @@ func MapHandler(pathsToUrls map[string]string, fallback http.Handler) http.Handl
 		fmt.Printf("Registering path: %s\n", path)
 	}
 
-	return func(w http.ResponseWriter, r *http.Request) {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if redirect, ok := pathsToUrls[r.URL.Path]; ok {
 			fmt.Printf("Redirecting %s → %s\n", r.URL.Path, redirect)
 			http.Redirect(w, r, redirect, http.StatusMovedPermanently)
 		} else {
 			fallback.ServeHTTP(w, r)
 		}
-	}
+	})
 }
 
 type Redirect struct {
@@ -35,7 +35,7 @@ func toPathMap(paths []Redirect) map[string]string {
 	}))
 }
 
-func YamlHandler(yml []byte, fallback http.Handler) (http.HandlerFunc, error) {
+func YamlHandler(yml []byte, fallback http.Handler) (http.Handler, error) {
 	redirects := []Redirect{}
 
 	if err := yaml.Unmarshal(yml, &redirects); err != nil {
@@ -46,7 +46,7 @@ func YamlHandler(yml []byte, fallback http.Handler) (http.HandlerFunc, error) {
 	return MapHandler(pathsToUrls, fallback), nil
 }
 
-func JsonHandler(yml []byte, fallback http.Handler) (http.HandlerFunc, error) {
+func JsonHandler(yml []byte, fallback http.Handler) (http.Handler, error) {
 	redirects := []Redirect{}
 
 	if err := json.Unmarshal(yml, &redirects); err != nil {

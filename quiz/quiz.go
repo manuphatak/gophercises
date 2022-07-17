@@ -92,10 +92,9 @@ func collectQuizAnswers(rows [][]string, limit int) ([]bool, error) {
 			return results, nil
 		case answer := <-answerChan:
 			results[i] = answer == row[1]
-
 		}
-
 	}
+
 	return results, nil
 }
 

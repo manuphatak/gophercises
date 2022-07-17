@@ -72,7 +72,7 @@ func defaultMux() *http.ServeMux {
 	return mux
 }
 
-func defaultHandler() http.HandlerFunc {
+func defaultHandler() http.Handler {
 	mux := defaultMux()
 
 	pathsToUrls := map[string]string{
@@ -83,7 +83,7 @@ func defaultHandler() http.HandlerFunc {
 	return MapHandler(pathsToUrls, mux)
 }
 
-func loadYamlRedirects(yamlPaths []string, handler http.HandlerFunc) (http.HandlerFunc, error) {
+func loadYamlRedirects(yamlPaths []string, handler http.Handler) (http.Handler, error) {
 	for _, yamlPath := range yamlPaths {
 		yaml, err := os.ReadFile(yamlPath)
 		if err != nil {
@@ -98,7 +98,7 @@ func loadYamlRedirects(yamlPaths []string, handler http.HandlerFunc) (http.Handl
 	return handler, nil
 }
 
-func loadJsonRedirects(jsonPaths []string, handler http.HandlerFunc) (http.HandlerFunc, error) {
+func loadJsonRedirects(jsonPaths []string, handler http.Handler) (http.Handler, error) {
 	for _, jsonPath := range jsonPaths {
 		json, err := os.ReadFile(jsonPath)
 		if err != nil {
