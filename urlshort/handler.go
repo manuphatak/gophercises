@@ -9,19 +9,35 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func MapHandler(pathsToUrls map[string]string, fallback http.Handler) http.HandlerFunc {
+type RouteHandler interface {
+	MapHandler(pathsToUrls map[string]string) RouteHandler
+	ServeHTTP(http.ResponseWriter, *http.Request)
+}
+type memoryEngine http.HandlerFunc
+
+// type boltDbEngine http.HandlerFunc
+
+func NewMemoryEngine(handler http.Handler) RouteHandler {
+	return memoryEngine(handler.ServeHTTP)
+}
+
+func (handler memoryEngine) MapHandler(pathsToUrls map[string]string) RouteHandler {
 	for path := range pathsToUrls {
 		fmt.Printf("Registering path: %s\n", path)
 	}
 
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return memoryEngine(func(w http.ResponseWriter, r *http.Request) {
 		if redirect, ok := pathsToUrls[r.URL.Path]; ok {
 			fmt.Printf("Redirecting %s → %s\n", r.URL.Path, redirect)
 			http.Redirect(w, r, redirect, http.StatusMovedPermanently)
 		} else {
-			fallback.ServeHTTP(w, r)
+			handler.ServeHTTP(w, r)
 		}
 	})
+}
+
+func (handler memoryEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	handler(w, r)
 }
 
 type Redirect struct {
@@ -29,13 +45,7 @@ type Redirect struct {
 	Url  string
 }
 
-func toPathMap(paths []Redirect) map[string]string {
-	return lo.FromEntries(lo.Map(paths, func(path Redirect, _ int) lo.Entry[string, string] {
-		return lo.Entry[string, string]{Key: path.Path, Value: path.Url}
-	}))
-}
-
-func YamlHandler(yml []byte, fallback http.Handler) (http.Handler, error) {
+func YamlHandler(yml []byte, handler RouteHandler) (RouteHandler, error) {
 	redirects := []Redirect{}
 
 	if err := yaml.Unmarshal(yml, &redirects); err != nil {
@@ -43,10 +53,10 @@ func YamlHandler(yml []byte, fallback http.Handler) (http.Handler, error) {
 	}
 	pathsToUrls := toPathMap(redirects)
 
-	return MapHandler(pathsToUrls, fallback), nil
+	return handler.MapHandler(pathsToUrls), nil
 }
 
-func JsonHandler(yml []byte, fallback http.Handler) (http.Handler, error) {
+func JsonHandler(yml []byte, handler RouteHandler) (RouteHandler, error) {
 	redirects := []Redirect{}
 
 	if err := json.Unmarshal(yml, &redirects); err != nil {
@@ -54,5 +64,11 @@ func JsonHandler(yml []byte, fallback http.Handler) (http.Handler, error) {
 	}
 	pathsToUrls := toPathMap(redirects)
 
-	return MapHandler(pathsToUrls, fallback), nil
+	return handler.MapHandler(pathsToUrls), nil
+}
+
+func toPathMap(paths []Redirect) map[string]string {
+	return lo.FromEntries(lo.Map(paths, func(path Redirect, _ int) lo.Entry[string, string] {
+		return lo.Entry[string, string]{Key: path.Path, Value: path.Url}
+	}))
 }

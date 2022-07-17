@@ -38,7 +38,9 @@ func main() {
 		},
 		Action: func(c *cli.Context) error {
 			var err error
-			handler := defaultHandler()
+			mux := defaultMux()
+			handler := NewMemoryEngine(mux)
+			handler = loadDefaultRedirects(handler)
 
 			yamlPaths := c.StringSlice("yaml")
 			handler, err = loadYamlRedirects(yamlPaths, handler)
@@ -72,18 +74,17 @@ func defaultMux() *http.ServeMux {
 	return mux
 }
 
-func defaultHandler() http.Handler {
-	mux := defaultMux()
+func loadDefaultRedirects(handler RouteHandler) RouteHandler {
 
 	pathsToUrls := map[string]string{
 		"/urlshort-godoc": "https://godoc.org/github.com/gophercises/urlshort",
 		"/yaml-godoc":     "https://godoc.org/gopkg.in/yaml.v2",
 	}
 	// Build the MapHandler using the mux as the fallback
-	return MapHandler(pathsToUrls, mux)
+	return handler.MapHandler(pathsToUrls)
 }
 
-func loadYamlRedirects(yamlPaths []string, handler http.Handler) (http.Handler, error) {
+func loadYamlRedirects(yamlPaths []string, handler RouteHandler) (RouteHandler, error) {
 	for _, yamlPath := range yamlPaths {
 		yaml, err := os.ReadFile(yamlPath)
 		if err != nil {
@@ -98,7 +99,7 @@ func loadYamlRedirects(yamlPaths []string, handler http.Handler) (http.Handler, 
 	return handler, nil
 }
 
-func loadJsonRedirects(jsonPaths []string, handler http.Handler) (http.Handler, error) {
+func loadJsonRedirects(jsonPaths []string, handler RouteHandler) (RouteHandler, error) {
 	for _, jsonPath := range jsonPaths {
 		json, err := os.ReadFile(jsonPath)
 		if err != nil {
