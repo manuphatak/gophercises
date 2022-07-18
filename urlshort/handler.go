@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/samber/lo"
 	bolt "go.etcd.io/bbolt"
 	"gopkg.in/yaml.v3"
 )
@@ -19,12 +18,6 @@ type RouteHandler interface {
 	Close()
 }
 type memoryEngine http.HandlerFunc
-
-type boltEngine struct {
-	db      *bolt.DB
-	file    *os.File
-	handler http.HandlerFunc
-}
 
 func NewMemoryEngine(handler http.Handler) RouteHandler {
 	return memoryEngine(handler.ServeHTTP)
@@ -52,6 +45,12 @@ func (handler memoryEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (memoryEngine) Close() {
 }
 
+type boltEngine struct {
+	db      *bolt.DB
+	file    *os.File
+	handler http.HandlerFunc
+}
+
 func CreateBoltEngine(handler http.Handler) (RouteHandler, error) {
 	file, err := ioutil.TempFile(".", "bolt-*.db")
 	if err != nil {
@@ -64,7 +63,7 @@ func CreateBoltEngine(handler http.Handler) (RouteHandler, error) {
 	}
 
 	db.Update(func(tx *bolt.Tx) error {
-		_, err := tx.CreateBucket([]byte("MyBucket"))
+		_, err := tx.CreateBucket([]byte("Redirects"))
 		return err
 	})
 	return boltEngine{db, file, handler.ServeHTTP}, nil
@@ -72,7 +71,7 @@ func CreateBoltEngine(handler http.Handler) (RouteHandler, error) {
 
 func (engine boltEngine) MapHandler(pathsToUrls map[string]string) RouteHandler {
 	err := engine.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte("MyBucket"))
+		b := tx.Bucket([]byte("Redirects"))
 
 		for path, redirect := range pathsToUrls {
 			fmt.Printf("Registering path: %s\n", path)
@@ -87,11 +86,10 @@ func (engine boltEngine) MapHandler(pathsToUrls map[string]string) RouteHandler 
 	if err != nil {
 		log.Fatal(err)
 	}
-	return boltEngine{engine.db, engine.file, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return boltEngine{engine.db, engine.file, func(w http.ResponseWriter, r *http.Request) {
 		engine.db.View(func(tx *bolt.Tx) error {
 
-			b := tx.Bucket([]byte("MyBucket"))
-			redirect := b.Get([]byte(r.URL.Path))
+			redirect := tx.Bucket([]byte("Redirects")).Get([]byte(r.URL.Path))
 
 			if redirect != nil {
 				fmt.Printf("Redirecting %s → %s\n", r.URL.Path, string(redirect))
@@ -102,8 +100,7 @@ func (engine boltEngine) MapHandler(pathsToUrls map[string]string) RouteHandler 
 
 			return nil
 		})
-
-	})}
+	}}
 }
 
 func (engine boltEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -116,35 +113,35 @@ func (engine boltEngine) Close() {
 	os.Remove(engine.file.Name())
 }
 
-type Redirect struct {
+type redirect struct {
 	Path string
 	Url  string
 }
 
 func YamlHandler(yml []byte, handler RouteHandler) (RouteHandler, error) {
-	redirects := []Redirect{}
+	redirects := []redirect{}
 
 	if err := yaml.Unmarshal(yml, &redirects); err != nil {
 		return nil, err
 	}
-	pathsToUrls := toPathMap(redirects)
 
-	return handler.MapHandler(pathsToUrls), nil
+	return handler.MapHandler(toPathMap(redirects)), nil
 }
 
 func JsonHandler(yml []byte, handler RouteHandler) (RouteHandler, error) {
-	redirects := []Redirect{}
+	redirects := []redirect{}
 
 	if err := json.Unmarshal(yml, &redirects); err != nil {
 		return nil, err
 	}
-	pathsToUrls := toPathMap(redirects)
 
-	return handler.MapHandler(pathsToUrls), nil
+	return handler.MapHandler(toPathMap(redirects)), nil
 }
 
-func toPathMap(paths []Redirect) map[string]string {
-	return lo.FromEntries(lo.Map(paths, func(path Redirect, _ int) lo.Entry[string, string] {
-		return lo.Entry[string, string]{Key: path.Path, Value: path.Url}
-	}))
+func toPathMap(redirects []redirect) (pathsToUrls map[string]string) {
+	pathsToUrls = make(map[string]string)
+	for _, redirect := range redirects {
+		pathsToUrls[redirect.Path] = redirect.Url
+	}
+	return
 }
