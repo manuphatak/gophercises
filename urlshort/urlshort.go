@@ -81,7 +81,6 @@ func main() {
 	if err := app.Run(os.Args); err != nil {
 		log.Fatal(err)
 	}
-
 }
 
 func defaultMux() *http.ServeMux {
@@ -93,7 +92,6 @@ func defaultMux() *http.ServeMux {
 }
 
 func loadDefaultRedirects(handler RouteHandler) RouteHandler {
-
 	pathsToUrls := map[string]string{
 		"/urlshort-godoc": "https://godoc.org/github.com/gophercises/urlshort",
 		"/yaml-godoc":     "https://godoc.org/gopkg.in/yaml.v2",
