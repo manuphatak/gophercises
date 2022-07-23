@@ -3,8 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
+	"regexp"
 	"strings"
 
 	"golang.org/x/net/html"
@@ -16,26 +19,37 @@ type Link struct {
 }
 
 func main() {
+	useHtml := flag.Bool("html", false, "Get links from a remote HTML file")
+
 	flag.Parse()
-	site := flag.Arg(0)
-	if site == "" {
+
+	target := flag.Arg(0)
+	if target == "" {
 		fmt.Println("usage: link <target>")
 		os.Exit(1)
 	}
 
-	links := extractLinks(site)
+	var reader io.Reader
+
+	if *useHtml {
+		response, err := http.Get(target)
+		check(err)
+		reader = response.Body
+	} else {
+		reader, err := os.Open(target)
+		check(err)
+		defer reader.Close()
+	}
+
+	links := extractLinks(reader)
 
 	for _, link := range links {
 		fmt.Printf("%#v\n", link)
 	}
 }
 
-func extractLinks(fileName string) []Link {
-	file, err := os.Open(fileName)
-	check(err)
-	defer file.Close()
-
-	doc, err := html.Parse(file)
+func extractLinks(reader io.Reader) []Link {
+	doc, err := html.Parse(reader)
 	check(err)
 
 	links := []Link{}
@@ -64,10 +78,11 @@ func walk(node *html.Node, links *[]Link) {
 
 func findLinkText(node *html.Node, depth int32) string {
 	text := ""
+	re := regexp.MustCompile(`(?m)\s+`)
 
 	if next := node.FirstChild; next != nil {
 		if next.Type == html.TextNode {
-			text = text + strings.TrimSpace(next.Data) + findLinkText(next, depth+1)
+			text = text + next.Data + findLinkText(next, depth+1)
 		} else {
 			text = text + findLinkText(next, depth+1)
 		}
@@ -81,7 +96,7 @@ func findLinkText(node *html.Node, depth int32) string {
 		}
 	}
 
-	return strings.TrimSpace(text)
+	return strings.TrimSpace(re.ReplaceAllString(text, " "))
 }
 
 func check(err error) {
