@@ -36,9 +36,10 @@ func main() {
 		check(err)
 		reader = response.Body
 	} else {
-		reader, err := os.Open(target)
+		file, err := os.Open(target)
 		check(err)
-		defer reader.Close()
+		defer file.Close()
+		reader = file
 	}
 
 	links := extractLinks(reader)
