@@ -57,7 +57,7 @@ func CreateBoltEngine(handler http.Handler) (RouteHandler, error) {
 		return nil, err
 	}
 
-	db, err := bolt.Open(file.Name(), 0600, nil)
+	db, err := bolt.Open(file.Name(), 0o600, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +88,6 @@ func (engine boltEngine) MapHandler(pathsToUrls map[string]string) RouteHandler 
 	}
 	return boltEngine{engine.db, engine.file, func(w http.ResponseWriter, r *http.Request) {
 		engine.db.View(func(tx *bolt.Tx) error {
-
 			redirect := tx.Bucket([]byte("Redirects")).Get([]byte(r.URL.Path))
 
 			if redirect != nil {
